@@ -264,7 +264,7 @@ export default function App() {
       <header className="border-b border-ink/10 sticky top-0 z-50 bg-paper/80 backdrop-blur-xl">
         <div className="max-w-[1600px] mx-auto px-8 py-6 flex items-center justify-between">
           <div className="flex items-baseline gap-4">
-            <h1 className="text-3xl display-title italic">BPM</h1>
+            <h1 className="text-3xl display-title italic">Resume Architect</h1>
             <span className="mono-label hidden sm:block">Professional Resume Architect / v1.0</span>
           </div>
           <div className="flex items-center gap-8">
@@ -537,7 +537,7 @@ export default function App() {
       </main>
 
       {/* Watermark Footer */}
-      <footer className="py-12 flex justify-center items-center">
+      {/* <footer className="py-12 flex justify-center items-center">
         <a 
           href="https://blaisemercado-portfolio.vercel.app/" 
           target="_blank" 
@@ -546,7 +546,7 @@ export default function App() {
         >
           Built by <span className="text-accent group-hover:underline">BLAISE PASCAL MERCADO</span>
         </a>
-      </footer>
+      </footer> */}
     </div>
   );
 }
