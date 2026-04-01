@@ -141,29 +141,39 @@ export default function App() {
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: `
-          You are an expert career coach and professional resume writer specializing in ATS (Applicant Tracking System) optimization. 
-          Your task is to rewrite the following resume to perfectly match the provided job description while ensuring it is 100% ATS-friendly.
-          
-          ATS Optimization Guidelines:
-          1. Use standard section headings (e.g., "Professional Experience", "Education", "Skills").
-          2. Incorporate relevant keywords and phrases from the job description naturally.
-          3. Use a clean, single-column layout structure in the Markdown.
-          4. Avoid complex tables or unusual formatting that might confuse older ATS systems.
-          5. Highlight relevant skills and experiences that match the job requirements.
-          6. Use professional, action-oriented language (e.g., "Spearheaded", "Optimized", "Developed").
-          7. Maintain the original facts but rephrase them for maximum impact and keyword alignment.
-          8. Format the output in clean, professional Markdown.
-          9. Include sections: Contact Info (including the social links provided below if any), Professional Summary, Experience, Skills, and Education.
-          10. Ensure the tone is professional, confident, and tailored to the specific industry.
-          
-          Professional Links to include:
+          You are an expert professional resume writer. Rewrite the provided resume to target the given job description, formatted in Harvard resume style using Markdown.
+
+          CRITICAL ACCURACY RULES — NEVER VIOLATE:
+          - Only use facts from the original resume. Do NOT invent, fabricate, or embellish any job titles, companies, dates, degrees, institutions, or accomplishments.
+          - If information is not in the original resume, omit it entirely.
+          - Keep all dates, employer names, and school names exactly as provided.
+
+          HARVARD STYLE FORMAT — follow precisely:
+          1. Start with: # FULL NAME (all caps, exactly as in the resume)
+          2. Second line (single paragraph): email · phone · city, state · LinkedIn · GitHub (use only what's available)
+          3. Section headings as ## (e.g., ## EDUCATION, ## EXPERIENCE, ## SKILLS)
+          4. Under each experience entry use ### for "Company Name — Job Title" then a line for dates in italics, then bullet points
+          5. Under education use ### for "Institution Name" then degree and date
+          6. Bullet points start with strong action verbs; each is one concise achievement-oriented sentence
+          7. ## SKILLS section: group by category (e.g., **Languages:** ..., **Frameworks:** ...)
+          8. No tables, no columns, no icons — clean single-column Markdown only
+          9. Do NOT add a "Professional Summary" section unless the original resume already has one
+
+          ATS OPTIMIZATION:
+          - Naturally incorporate relevant keywords from the job description
+          - Mirror the exact terminology used in the job posting where truthful
+          - Prioritize the most relevant experiences and skills for this specific role
+
+          Professional Links to include (if provided):
           ${linksContext || 'None provided'}
 
           Original Resume:
           ${resumeText}
-          
+
           Job Description:
           ${jobDescription}
+
+          Output only the Markdown resume. No preamble, no commentary, no code fences.
         `,
       });
 
@@ -212,46 +222,87 @@ export default function App() {
     printWindow.document.write(`
       <html>
         <head>
-          <title></title>
-          <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+          <title>Resume</title>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;700&display=swap');
-            
-            @page { 
-              margin: 0; 
+            @import url('https://fonts.googleapis.com/css2?family=Garamond&family=EB+Garamond:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+            @page {
+              size: Letter;
+              margin: 0.85in 1in;
             }
-            
-            body { 
-              font-family: 'Fraunces', serif; 
-              padding: 40px; 
-              color: #1a1a1a; 
-              background: white; 
-              line-height: 1.5; 
+
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+
+            body {
+              font-family: 'EB Garamond', 'Garamond', Georgia, serif;
+              font-size: 11pt;
+              color: #111;
+              background: white;
+              line-height: 1.45;
             }
-            
-            h1 { text-align: center; font-size: 24px; font-weight: bold; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px; }
-            h2 { font-size: 14px; font-weight: bold; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 25px; margin-bottom: 5px; border-bottom: 1px solid #1a1a1a; display: block; width: 100%; }
-            p, li { font-size: 13px; margin-bottom: 4px; }
-            ul { list-style-type: disc; padding-left: 20px; margin-bottom: 15px; }
-            p:first-of-type { text-align: center; font-size: 11px; margin-bottom: 20px; opacity: 0.8; font-style: italic; }
-            
-            @media print { 
-              body { 
-                padding: 1in; 
-              } 
+
+            h1 {
+              font-size: 22pt;
+              font-weight: 700;
+              text-align: center;
+              text-transform: uppercase;
+              letter-spacing: 0.15em;
+              margin-bottom: 4pt;
+            }
+
+            /* Contact line */
+            p:first-of-type {
+              text-align: center;
+              font-size: 9.5pt;
+              margin-bottom: 12pt;
+              opacity: 0.8;
+            }
+
+            h2 {
+              font-size: 9pt;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.2em;
+              border-bottom: 1pt solid #111;
+              margin-top: 14pt;
+              margin-bottom: 5pt;
+              padding-bottom: 2pt;
+            }
+
+            h3 {
+              font-size: 10.5pt;
+              font-weight: 700;
+              margin-top: 7pt;
+              margin-bottom: 1pt;
+            }
+
+            p { font-size: 10.5pt; margin-bottom: 2pt; }
+
+            ul {
+              list-style-type: disc;
+              padding-left: 18pt;
+              margin-bottom: 6pt;
+              margin-top: 2pt;
+            }
+
+            li { font-size: 10.5pt; margin-bottom: 2pt; line-height: 1.4; }
+
+            strong { font-weight: 700; }
+            em { font-style: italic; }
+
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             }
           </style>
         </head>
         <body>
-          <div class="max-w-4xl mx-auto">
-            ${document.querySelector('.resume-preview')?.innerHTML || ''}
-          </div>
+          ${document.querySelector('.resume-preview')?.innerHTML || ''}
           <script>
             window.onload = () => {
               window.print();
               window.onafterprint = () => window.close();
             };
-          </script>
+          <\/script>
         </body>
       </html>
     `);
@@ -522,11 +573,11 @@ export default function App() {
                 )}
               </AnimatePresence>
 
-              <motion.div 
+              <motion.div
                 layout
                 className={cn(
-                  "resume-preview max-w-3xl mx-auto",
-                  isFullscreen ? "py-20" : "py-4"
+                  "resume-preview",
+                  isFullscreen ? "my-20" : "my-4"
                 )}
               >
                 <ReactMarkdown>{generatedResume}</ReactMarkdown>

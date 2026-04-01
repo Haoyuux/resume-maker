@@ -64,39 +64,101 @@
 
 /* Harvard-inspired Resume Preview Styling */
 .resume-preview {
-  @apply max-w-none font-serif text-ink;
-  line-height: 1.5;
+  @apply font-serif text-ink;
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 2.5rem 3rem;
+  line-height: 1.55;
+  background: white;
+  box-shadow: 0 2px 24px rgba(0,0,0,0.07);
 }
 
+/* Candidate name — large and centered */
 .resume-preview h1 {
-  @apply text-3xl font-bold mb-2 text-center border-none pb-0 not-italic uppercase tracking-widest;
   font-family: var(--font-serif);
+  font-size: 2.4rem;
+  font-weight: 900;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-bottom: 0.25rem;
+  border: none;
+  padding: 0;
+  font-style: normal;
+  line-height: 1.1;
 }
 
+/* Section headings — Harvard style ruled */
 .resume-preview h2 {
-  @apply text-sm font-bold uppercase tracking-widest mt-8 mb-2 py-0 px-0 bg-transparent text-ink border-b border-ink/30 block w-full;
   font-family: var(--font-serif);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  margin-top: 1.6rem;
+  margin-bottom: 0.45rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1.5px solid #1A1A1A;
+  display: block;
+  width: 100%;
+  background: transparent;
+  font-style: normal;
+  color: #1A1A1A;
+}
+
+/* Sub-headings (job titles, degree lines) */
+.resume-preview h3 {
+  font-family: var(--font-serif);
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-top: 0.75rem;
+  margin-bottom: 0.1rem;
+  font-style: normal;
 }
 
 .resume-preview p, .resume-preview li {
-  @apply text-[13px] leading-relaxed text-ink font-serif mb-1;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: #1A1A1A;
+  font-family: var(--font-serif);
+  margin-bottom: 0.2rem;
 }
 
 .resume-preview ul {
-  @apply list-disc pl-5 space-y-1 mb-4;
+  list-style-type: disc;
+  padding-left: 1.2rem;
+  margin-bottom: 0.6rem;
+  margin-top: 0.2rem;
 }
 
 .resume-preview li {
-  @apply relative pl-0 before:content-none;
+  padding-left: 0;
 }
 
 .resume-preview strong {
-  @apply font-bold;
+  font-weight: 700;
 }
 
-/* Center the first paragraph (Contact Info) */
+.resume-preview em {
+  font-style: italic;
+}
+
+/* Contact info line — centered under the name */
 .resume-preview p:first-of-type {
-  @apply text-center text-[11px] mb-6 opacity-70 italic;
+  text-align: center;
+  font-size: 0.72rem;
+  margin-bottom: 0.5rem;
+  opacity: 0.75;
+  font-style: normal;
+  letter-spacing: 0.03em;
+}
+
+/* Thin rule after contact block */
+.resume-preview p:first-of-type + p,
+.resume-preview p:nth-of-type(2) {
+  text-align: center;
+  font-size: 0.72rem;
+  opacity: 0.75;
 }
 
 /* Custom Scrollbar */
