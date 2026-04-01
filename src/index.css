@@ -1,0 +1,111 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;700&display=swap');
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: "Inter", sans-serif;
+  --font-serif: "Fraunces", serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --color-paper: #F5F5F3;
+  --color-ink: #1A1A1A;
+  --color-accent: #FF5F1F;
+}
+
+@layer base {
+  body {
+    @apply bg-paper text-ink font-sans antialiased selection:bg-accent selection:text-white relative;
+  }
+  
+  body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    opacity: 0.03;
+    pointer-events: none;
+    z-index: 9999;
+  }
+}
+
+/* Unique Grid System */
+.editorial-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 1px;
+  background-color: rgba(26, 26, 26, 0.1);
+  border: 1px solid rgba(26, 26, 26, 0.1);
+}
+
+.editorial-cell {
+  background-color: var(--color-paper);
+  padding: 2rem;
+}
+
+/* Typography Overrides */
+.display-title {
+  font-family: var(--font-serif);
+  font-weight: 900;
+  font-variation-settings: "SOFT" 100, "WONK" 1;
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+}
+
+.mono-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.6;
+}
+
+/* Harvard-inspired Resume Preview Styling */
+.resume-preview {
+  @apply max-w-none font-serif text-ink;
+  line-height: 1.5;
+}
+
+.resume-preview h1 {
+  @apply text-3xl font-bold mb-2 text-center border-none pb-0 not-italic uppercase tracking-widest;
+  font-family: var(--font-serif);
+}
+
+.resume-preview h2 {
+  @apply text-sm font-bold uppercase tracking-widest mt-8 mb-2 py-0 px-0 bg-transparent text-ink border-b border-ink/30 block w-full;
+  font-family: var(--font-serif);
+}
+
+.resume-preview p, .resume-preview li {
+  @apply text-[13px] leading-relaxed text-ink font-serif mb-1;
+}
+
+.resume-preview ul {
+  @apply list-disc pl-5 space-y-1 mb-4;
+}
+
+.resume-preview li {
+  @apply relative pl-0 before:content-none;
+}
+
+.resume-preview strong {
+  @apply font-bold;
+}
+
+/* Center the first paragraph (Contact Info) */
+.resume-preview p:first-of-type {
+  @apply text-center text-[11px] mb-6 opacity-70 italic;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-paper);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-ink);
+}

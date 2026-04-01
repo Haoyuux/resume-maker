@@ -1,0 +1,5 @@
+{
+  "name": "BPM",
+  "description": "Upload your resume and a job description to generate a perfectly tailored resume using Gemini AI.",
+  "requestFramePermissions": []
+}
