@@ -215,6 +215,26 @@ export default function App() {
     element.click();
   };
 
+  const downloadAsPdf = async () => {
+    const html2pdf = (await import('html2pdf.js')).default;
+    const element = document.querySelector('.resume-preview') as HTMLElement;
+    if (!element) return;
+
+    const nameMatch = generatedResume.match(/^#\s+(.+)/m);
+    const name = nameMatch ? nameMatch[1].trim() : 'tailored-resume';
+    const filename = `${name}.pdf`;
+
+    const opt = {
+      margin: [0.85, 1, 0.85, 1],
+      filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+    };
+
+    html2pdf().set(opt).from(element).save();
+  };
+
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
@@ -518,7 +538,14 @@ export default function App() {
                     {isCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                     {isCopied ? 'Copied' : 'Copy'}
                   </button>
-                  <button 
+                  <button
+                    onClick={downloadAsPdf}
+                    className="mono-label hover:text-accent transition-colors flex items-center gap-2"
+                  >
+                    <FileDown className="w-3 h-3" />
+                    PDF
+                  </button>
+                  <button
                     onClick={handlePrint}
                     className="mono-label hover:text-accent transition-colors flex items-center gap-2"
                   >
