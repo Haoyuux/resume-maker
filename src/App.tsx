@@ -150,12 +150,12 @@ export default function App() {
 
           HARVARD STYLE FORMAT — follow precisely:
           1. Start with: # FULL NAME (all caps, exactly as in the resume)
-          2. Second line (single paragraph): email · phone · city, state · LinkedIn · GitHub (use only what's available)
+          2. Second line (single paragraph): contact info and links separated by · — ONLY include a link label (e.g. LinkedIn, GitHub) if a URL for it is explicitly provided in the "Professional Links" section below. Never add a link label without a URL.
           3. Section headings as ## (e.g., ## EDUCATION, ## EXPERIENCE, ## SKILLS)
           4. Under each experience entry use ### for "Company Name — Job Title" then a line for dates in italics, then bullet points
           5. Under education use ### for "Institution Name" then degree and date
           6. Bullet points start with strong action verbs; each is one concise achievement-oriented sentence
-          7. ## SKILLS section: group by category (e.g., **Languages:** ..., **Frameworks:** ...)
+          7. ## SKILLS section: group by category (e.g., **Languages:** ..., **Frameworks:** ...) — list only actual technical skills and tools. NEVER include the candidate's own name or parts of their name as a skill, even if they match a known technology name.
           8. No tables, no columns, no icons — clean single-column Markdown only
           9. Do NOT add a "Professional Summary" section unless the original resume already has one
 
@@ -217,22 +217,48 @@ export default function App() {
 
   const downloadAsPdf = async () => {
     const html2pdf = (await import('html2pdf.js')).default;
-    const element = document.querySelector('.resume-preview') as HTMLElement;
-    if (!element) return;
+    const previewEl = document.querySelector('.resume-preview');
+    if (!previewEl) return;
 
     const nameMatch = generatedResume.match(/^#\s+(.+)/m);
     const name = nameMatch ? nameMatch[1].trim() : 'tailored-resume';
-    const filename = `${name}.pdf`;
+
+    // Build a self-contained container using already-loaded page fonts
+    const styleEl = document.createElement('style');
+    styleEl.textContent = `
+      .pdf-export-root { box-sizing: border-box; width: 816px; background: white; padding: 81px 96px; font-family: 'Fraunces', Georgia, serif; font-size: 11pt; color: #111; line-height: 1.45; }
+      .pdf-export-root * { box-sizing: border-box; }
+      .pdf-export-root h1 { font-size: 22pt; font-weight: 900; text-align: center; text-transform: uppercase; letter-spacing: 0.15em; margin: 0 0 4pt; line-height: 1.1; }
+      .pdf-export-root p:first-of-type { text-align: center; font-size: 9.5pt; margin-bottom: 12pt; color: #444; }
+      .pdf-export-root h2 { font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.2em; border-bottom: 1pt solid #111; margin: 14pt 0 5pt; padding-bottom: 2pt; }
+      .pdf-export-root h3 { font-size: 10.5pt; font-weight: 700; margin: 7pt 0 1pt; }
+      .pdf-export-root p { font-size: 10.5pt; margin-bottom: 2pt; }
+      .pdf-export-root ul { list-style-type: disc; padding-left: 18pt; margin: 2pt 0 6pt; }
+      .pdf-export-root li { font-size: 10.5pt; margin-bottom: 2pt; line-height: 1.4; }
+      .pdf-export-root strong { font-weight: 700; }
+      .pdf-export-root em { font-style: italic; }
+    `;
+    document.head.appendChild(styleEl);
+
+    const container = document.createElement('div');
+    container.className = 'pdf-export-root';
+    container.style.cssText = 'position: fixed; top: -99999px; left: -99999px;';
+    container.innerHTML = previewEl.innerHTML;
+    document.body.appendChild(container);
+
+    await document.fonts.ready;
 
     const opt = {
-      margin: [0.85, 1, 0.85, 1],
-      filename,
+      margin: 0,
+      filename: `${name}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+      html2canvas: { scale: 2, useCORS: true, logging: false },
+      jsPDF: { unit: 'px', format: [816, 1056], orientation: 'portrait' },
     };
 
-    html2pdf().set(opt).from(element).save();
+    await html2pdf().set(opt).from(container).save();
+    document.body.removeChild(container);
+    document.head.removeChild(styleEl);
   };
 
   const handlePrint = () => {
