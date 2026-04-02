@@ -233,7 +233,7 @@ export default function App() {
     if (h1) h1.style.fontSize = '18pt';
 
     const opt = {
-      margin: [0.85, 1, 0.85, 1],
+      margin: [0.4, 0.5, 0.4, 0.5],
       filename: `${name}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, logging: false },
