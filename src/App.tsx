@@ -244,7 +244,8 @@ export default function App() {
 
     const container = document.createElement('div');
     container.className = 'pdf-export-root';
-    container.style.cssText = 'position: fixed; top: -99999px; left: -99999px;';
+    // Must be in the visible document area — html2canvas can't capture fixed/off-viewport elements
+    container.style.cssText = 'position: absolute; left: 0; top: 0; width: 816px; z-index: -1; pointer-events: none;';
     container.innerHTML = previewEl.innerHTML;
     document.body.appendChild(container);
 
@@ -254,7 +255,7 @@ export default function App() {
       margin: 0,
       filename: `${name}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false },
+      html2canvas: { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
       jsPDF: { unit: 'px', format: [816, 1056], orientation: 'portrait' },
     };
 
