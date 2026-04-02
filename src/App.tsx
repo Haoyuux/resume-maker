@@ -219,49 +219,30 @@ export default function App() {
   };
 
   const downloadAsPdf = async () => {
-    const previewEl = document.querySelector('.resume-preview');
+    const previewEl = document.querySelector('.resume-preview') as HTMLElement;
     if (!previewEl) return;
 
     const nameMatch = generatedResume.match(/^#\s+(.+)/m);
     const name = nameMatch ? nameMatch[1].trim() : 'tailored-resume';
 
-    // Build a self-contained container using already-loaded page fonts
-    const styleEl = document.createElement('style');
-    styleEl.textContent = `
-      .pdf-export-root { box-sizing: border-box; width: 816px; background: white; padding: 81px 96px; font-family: 'Fraunces', Georgia, serif; font-size: 11pt; color: #111; line-height: 1.45; }
-      .pdf-export-root * { box-sizing: border-box; }
-      .pdf-export-root h1 { font-size: 22pt; font-weight: 900; text-align: center; text-transform: uppercase; letter-spacing: 0.15em; margin: 0 0 4pt; line-height: 1.1; }
-      .pdf-export-root p:first-of-type { text-align: center; font-size: 9.5pt; margin-bottom: 12pt; color: #444; }
-      .pdf-export-root h2 { font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.2em; border-bottom: 1pt solid #111; margin: 14pt 0 5pt; padding-bottom: 2pt; }
-      .pdf-export-root h3 { font-size: 10.5pt; font-weight: 700; margin: 7pt 0 1pt; }
-      .pdf-export-root p { font-size: 10.5pt; margin-bottom: 2pt; }
-      .pdf-export-root ul { list-style-type: disc; padding-left: 18pt; margin: 2pt 0 6pt; }
-      .pdf-export-root li { font-size: 10.5pt; margin-bottom: 2pt; line-height: 1.4; }
-      .pdf-export-root strong { font-weight: 700; }
-      .pdf-export-root em { font-style: italic; }
-    `;
-    document.head.appendChild(styleEl);
-
-    const container = document.createElement('div');
-    container.className = 'pdf-export-root';
-    // Must be in the visible document area — html2canvas can't capture fixed/off-viewport elements
-    container.style.cssText = 'position: absolute; left: 0; top: 0; width: 816px; z-index: -1; pointer-events: none;';
-    container.innerHTML = previewEl.innerHTML;
-    document.body.appendChild(container);
-
     await document.fonts.ready;
 
+    // Temporarily shrink h1 so long names don't wrap in the exported PDF
+    const h1 = previewEl.querySelector('h1') as HTMLElement | null;
+    const prevFontSize = h1?.style.fontSize ?? '';
+    if (h1) h1.style.fontSize = '18pt';
+
     const opt = {
-      margin: 0,
+      margin: [0.85, 1, 0.85, 1],
       filename: `${name}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
-      jsPDF: { unit: 'px', format: [816, 1056], orientation: 'portrait' },
+      html2canvas: { scale: 2, useCORS: true, logging: false },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
     };
 
-    await html2pdf().set(opt).from(container).save();
-    document.body.removeChild(container);
-    document.head.removeChild(styleEl);
+    await html2pdf().set(opt).from(previewEl).save();
+
+    if (h1) h1.style.fontSize = prevFontSize;
   };
 
   const handlePrint = () => {
