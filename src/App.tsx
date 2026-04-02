@@ -227,13 +227,20 @@ export default function App() {
 
     await document.fonts.ready;
 
-    // Temporarily shrink h1 so long names don't wrap in the exported PDF
+    // Temporarily apply Harvard-standard padding and shrink h1 for export
     const h1 = previewEl.querySelector('h1') as HTMLElement | null;
-    const prevFontSize = h1?.style.fontSize ?? '';
+    const prevH1Size = h1?.style.fontSize ?? '';
+    const prevPadding = previewEl.style.padding;
+    const prevBoxShadow = previewEl.style.boxShadow;
+    const prevMaxWidth = previewEl.style.maxWidth;
+
     if (h1) h1.style.fontSize = '18pt';
+    previewEl.style.padding = '0.5in 1in';
+    previewEl.style.boxShadow = 'none';
+    previewEl.style.maxWidth = 'none';
 
     const opt = {
-      margin: [0.5, 1, 0.5, 1],
+      margin: 0,
       filename: `${name}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, logging: false },
@@ -242,7 +249,10 @@ export default function App() {
 
     await html2pdf().set(opt).from(previewEl).save();
 
-    if (h1) h1.style.fontSize = prevFontSize;
+    if (h1) h1.style.fontSize = prevH1Size;
+    previewEl.style.padding = prevPadding;
+    previewEl.style.boxShadow = prevBoxShadow;
+    previewEl.style.maxWidth = prevMaxWidth;
   };
 
   const handlePrint = () => {
