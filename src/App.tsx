@@ -17,6 +17,7 @@ import {
 import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 import { cn } from './lib/utils';
+import html2pdf from 'html2pdf.js';
 import * as pdfjs from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { motion, AnimatePresence } from 'motion/react';
@@ -150,7 +151,9 @@ export default function App() {
 
           HARVARD STYLE FORMAT — follow precisely:
           1. Start with: # FULL NAME (all caps, exactly as in the resume)
-          2. Second line (single paragraph): contact info and links separated by · — ONLY include a link label (e.g. LinkedIn, GitHub) if a URL for it is explicitly provided in the "Professional Links" section below. Never add a link label without a URL.
+          2. After the name, two lines:
+             - Line 1: email · phone · city, state
+             - Line 2: one link per label, separated by · (e.g. LinkedIn · GitHub · Portfolio) — ONLY include a link label if a URL for it is explicitly provided in the "Professional Links" section below. Never add a link label without a URL. If no links are provided, omit line 2 entirely.
           3. Section headings as ## (e.g., ## EDUCATION, ## EXPERIENCE, ## SKILLS)
           4. Under each experience entry use ### for "Company Name — Job Title" then a line for dates in italics, then bullet points
           5. Under education use ### for "Institution Name" then degree and date
@@ -216,7 +219,6 @@ export default function App() {
   };
 
   const downloadAsPdf = async () => {
-    const html2pdf = (await import('html2pdf.js')).default;
     const previewEl = document.querySelector('.resume-preview');
     if (!previewEl) return;
 
