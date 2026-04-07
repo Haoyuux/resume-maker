@@ -151,9 +151,9 @@ export default function App() {
 
           HARVARD STYLE FORMAT — follow precisely:
           1. Start with: # FULL NAME (all caps, exactly as in the resume)
-          2. After the name, two lines:
-             - Line 1: email · phone · city, state
-             - Line 2: one link per label, separated by · (e.g. LinkedIn · GitHub · Portfolio) — ONLY include a link label if a URL for it is explicitly provided in the "Professional Links" section below. Never add a link label without a URL. If no links are provided, omit line 2 entirely.
+          2. After the name, two SEPARATE paragraphs (blank line between them):
+             - Paragraph 1: email · phone · city, state (contact info ONLY — no links here)
+             - Paragraph 2: markdown hyperlinks separated by · using the exact format [Label](url) — e.g. [LinkedIn](https://linkedin.com/in/...) · [GitHub](https://github.com/...) — ONLY include a link if a URL for it is explicitly provided in the "Professional Links" section below. Never add a link without a URL. If no links are provided, omit paragraph 2 entirely.
           3. Section headings as ## (e.g., ## EDUCATION, ## EXPERIENCE, ## SKILLS)
           4. Under each experience entry use ### for "Company Name — Job Title" then a line for dates in italics, then bullet points
           5. Under education use ### for "Institution Name" then degree and date
@@ -245,6 +245,7 @@ export default function App() {
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, logging: false },
       jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['.resume-preview h2', '.resume-preview h3', 'li'] },
     };
 
     await html2pdf().set(opt).from(previewEl).save();
@@ -627,7 +628,15 @@ export default function App() {
                   isFullscreen ? "my-20" : "my-4"
                 )}
               >
-                <ReactMarkdown>{generatedResume}</ReactMarkdown>
+                <ReactMarkdown
+                  components={{
+                    a: ({ href, children }) => (
+                      <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>
+                        {children}
+                      </a>
+                    ),
+                  }}
+                >{generatedResume}</ReactMarkdown>
               </motion.div>
             </div>
           </div>

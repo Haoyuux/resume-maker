@@ -104,6 +104,8 @@
   background: transparent;
   font-style: normal;
   color: #1A1A1A;
+  page-break-after: avoid;
+  break-after: avoid;
 }
 
 /* Sub-headings (job titles, degree lines) */
@@ -114,6 +116,8 @@
   margin-top: 0.75rem;
   margin-bottom: 0.1rem;
   font-style: normal;
+  page-break-after: avoid;
+  break-after: avoid;
 }
 
 .resume-preview p, .resume-preview li {
