@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Upload, 
   FileText, 
@@ -30,16 +30,43 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 export default function App() {
   const [resumeText, setResumeText] = useState<string>('');
   const [jobDescription, setJobDescription] = useState<string>('');
-  const [socialLinks, setSocialLinks] = useState<{ label: string, url: string }[]>([
-    { label: 'LinkedIn', url: '' },
-    { label: 'GitHub', url: '' }
-  ]);
+  const [socialLinks, setSocialLinks] = useState<{ label: string, url: string }[]>(() => {
+    try {
+      const saved = localStorage.getItem('socialLinks');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [{ label: 'LinkedIn', url: '' }, { label: 'GitHub', url: '' }];
+  });
+  const [skills, setSkills] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('skills');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
+  const [skillInput, setSkillInput] = useState('');
+  const [isExtractingSkills, setIsExtractingSkills] = useState(false);
+  const [mode, setMode] = useState<'general' | 'ats'>(() => {
+    return (localStorage.getItem('resumeMode') as 'general' | 'ats') || 'ats';
+  });
   const [generatedResume, setGeneratedResume] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    localStorage.setItem('socialLinks', JSON.stringify(socialLinks));
+  }, [socialLinks]);
+
+  useEffect(() => {
+    localStorage.setItem('skills', JSON.stringify(skills));
+  }, [skills]);
+
+  useEffect(() => {
+    localStorage.setItem('resumeMode', mode);
+  }, [mode]);
 
   const extractTextFromPdf = async (file: File) => {
     const arrayBuffer = await file.arrayBuffer();
@@ -75,11 +102,34 @@ export default function App() {
       
       setResumeText(text);
       extractLinksFromText(text);
+      extractSkillsFromText(text);
     } catch (error) {
       console.error('Error reading file:', error);
       alert('Failed to read file. Please try pasting your resume manually.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const extractSkillsFromText = async (text: string) => {
+    setIsExtractingSkills(true);
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Extract all technical and professional skills from this resume. Return ONLY a comma-separated list of skills with no explanation, no categories, no bullet points. Example: JavaScript, React, Node.js, SQL, Git\n\nResume:\n${text}`,
+      });
+      const raw = response.text?.trim() || '';
+      const extracted = raw
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0 && s.length < 50);
+      if (extracted.length > 0) {
+        setSkills(extracted);
+      }
+    } catch {
+      // silently fail — skills section remains empty
+    } finally {
+      setIsExtractingSkills(false);
     }
   };
 
@@ -127,8 +177,8 @@ export default function App() {
   };
 
   const generateTailoredResume = async () => {
-    if (!resumeText || !jobDescription) {
-      alert('Please provide both your resume and the job description.');
+    if (!resumeText || (mode === 'ats' && !jobDescription)) {
+      alert(mode === 'ats' ? 'Please provide both your resume and the job description.' : 'Please provide your resume.');
       return;
     }
 
@@ -139,11 +189,9 @@ export default function App() {
         .map(link => `${link.label}: ${link.url}`)
         .join('\n');
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `
-          You are an expert professional resume writer. Rewrite the provided resume to target the given job description, formatted in Harvard resume style using Markdown.
+      const skillsContext = skills.length > 0 ? skills.join(', ') : '';
 
+      const sharedRules = `
           CRITICAL ACCURACY RULES — NEVER VIOLATE:
           - Only use facts from the original resume. Do NOT invent, fabricate, or embellish any job titles, companies, dates, degrees, institutions, or accomplishments.
           - If information is not in the original resume, omit it entirely.
@@ -158,9 +206,13 @@ export default function App() {
           4. Under each experience entry use ### for "Company Name — Job Title" then a line for dates in italics, then bullet points
           5. Under education use ### for "Institution Name" then degree and date
           6. Bullet points start with strong action verbs; each is one concise achievement-oriented sentence
-          7. ## SKILLS section: group by category (e.g., **Languages:** ..., **Frameworks:** ...) — list only actual technical skills and tools. NEVER include the candidate's own name or parts of their name as a skill, even if they match a known technology name.
+          7. ## SKILLS section: each category MUST be its own separate paragraph with a blank line between them (e.g., "**Languages:** Python, Java\n\n**Frameworks:** React, Django"). NEVER put multiple categories in the same paragraph. List only actual technical skills and tools. NEVER include the candidate's own name or parts of their name as a skill.
           8. No tables, no columns, no icons — clean single-column Markdown only
-          9. Do NOT add a "Professional Summary" section unless the original resume already has one
+          9. Do NOT add a "Professional Summary" section unless the original resume already has one`;
+
+      const prompt = mode === 'ats'
+        ? `You are an expert professional resume writer. Rewrite the provided resume to target the given job description, formatted in Harvard resume style using Markdown.
+          ${sharedRules}
 
           ATS OPTIMIZATION:
           - Naturally incorporate relevant keywords from the job description
@@ -170,14 +222,29 @@ export default function App() {
           Professional Links to include (if provided):
           ${linksContext || 'None provided'}
 
+          ${skillsContext ? `Candidate's known skills (incorporate into ## SKILLS section, grouped by category):\n          ${skillsContext}\n` : ''}
           Original Resume:
           ${resumeText}
 
           Job Description:
           ${jobDescription}
 
-          Output only the Markdown resume. No preamble, no commentary, no code fences.
-        `,
+          Output only the Markdown resume. No preamble, no commentary, no code fences.`
+        : `You are an expert professional resume writer. Rewrite the provided resume into a clean, professional, general-purpose resume using Harvard resume style Markdown. Do not tailor to any specific job. Improve the content: strengthen weak bullet points with strong action verbs, quantify achievements where possible, remove filler or vague language, and ensure every bullet is concise and impact-focused. Fix grammar and phrasing throughout.
+          ${sharedRules}
+
+          Professional Links to include (if provided):
+          ${linksContext || 'None provided'}
+
+          ${skillsContext ? `Candidate's known skills (incorporate into ## SKILLS section, grouped by category):\n          ${skillsContext}\n` : ''}
+          Original Resume:
+          ${resumeText}
+
+          Output only the Markdown resume. No preamble, no commentary, no code fences.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
       });
 
       setGeneratedResume(response.text || '');
@@ -201,6 +268,27 @@ export default function App() {
 
   const removeLink = (index: number) => {
     setSocialLinks(socialLinks.filter((_, i) => i !== index));
+  };
+
+  const addSkill = (raw: string) => {
+    const trimmed = raw.trim().replace(/,$/, '').trim();
+    if (trimmed && !skills.includes(trimmed)) {
+      setSkills([...skills, trimmed]);
+    }
+    setSkillInput('');
+  };
+
+  const handleSkillKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addSkill(skillInput);
+    } else if (e.key === 'Backspace' && skillInput === '') {
+      setSkills(skills.slice(0, -1));
+    }
+  };
+
+  const removeSkill = (index: number) => {
+    setSkills(skills.filter((_, i) => i !== index));
   };
 
   const copyToClipboard = () => {
@@ -239,13 +327,19 @@ export default function App() {
     previewEl.style.boxShadow = 'none';
     previewEl.style.maxWidth = 'none';
 
+    // Prevent paragraphs and list items from splitting across pages
+    const allPs = previewEl.querySelectorAll('p');
+    const allLis = previewEl.querySelectorAll('li');
+    allPs.forEach((el: HTMLElement) => { el.style.pageBreakInside = 'avoid'; });
+    allLis.forEach((el: HTMLElement) => { el.style.pageBreakInside = 'avoid'; });
+
     const opt = {
-      margin: 0,
+      margin: [0.75, 1, 0.75, 1],
       filename: `${name}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, logging: false },
       jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
-      pagebreak: { mode: ['css', 'legacy'], avoid: ['.resume-preview h2', '.resume-preview h3', 'li'] },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['.resume-preview h2', '.resume-preview h3', '.resume-preview li', '.resume-preview p'] },
     };
 
     await html2pdf().set(opt).from(previewEl).save();
@@ -254,6 +348,8 @@ export default function App() {
     previewEl.style.padding = prevPadding;
     previewEl.style.boxShadow = prevBoxShadow;
     previewEl.style.maxWidth = prevMaxWidth;
+    allPs.forEach((el: HTMLElement) => { el.style.pageBreakInside = ''; });
+    allLis.forEach((el: HTMLElement) => { el.style.pageBreakInside = ''; });
   };
 
   const handlePrint = () => {
@@ -283,7 +379,7 @@ export default function App() {
             }
 
             h1 {
-              font-size: 22pt;
+              font-size: 29pt;
               font-weight: 700;
               text-align: center;
               text-transform: uppercase;
@@ -297,6 +393,19 @@ export default function App() {
               font-size: 9.5pt;
               margin-bottom: 12pt;
               opacity: 0.8;
+            }
+
+            /* Links line (2nd paragraph) */
+            p:nth-of-type(2) {
+              text-align: center;
+              font-size: 9.5pt;
+              margin-bottom: 12pt;
+              opacity: 0.8;
+            }
+
+            /* Body paragraphs — justified */
+            p:nth-of-type(n+3) {
+              text-align: justify;
             }
 
             h2 {
@@ -317,7 +426,7 @@ export default function App() {
               margin-bottom: 1pt;
             }
 
-            p { font-size: 10.5pt; margin-bottom: 2pt; }
+            p { font-size: 10.5pt; margin-bottom: 2pt; text-align: justify; }
 
             ul {
               list-style-type: disc;
@@ -326,7 +435,7 @@ export default function App() {
               margin-top: 2pt;
             }
 
-            li { font-size: 10.5pt; margin-bottom: 2pt; line-height: 1.4; }
+            li { font-size: 10.5pt; margin-bottom: 2pt; line-height: 1.4; text-align: justify; }
 
             strong { font-weight: 700; }
             em { font-style: italic; }
@@ -428,7 +537,32 @@ export default function App() {
               )}
             </motion.section>
 
-            <motion.section 
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.03 }}
+              className="space-y-3"
+            >
+              <span className="mono-label">Resume Mode</span>
+              <div className="flex gap-2">
+                {(['general', 'ats'] as const).map(m => (
+                  <button
+                    key={m}
+                    onClick={() => setMode(m)}
+                    className={cn(
+                      'flex-1 py-2 text-[10px] font-mono uppercase tracking-widest border transition-colors',
+                      mode === m
+                        ? 'bg-accent text-white border-accent'
+                        : 'bg-transparent text-ink/40 border-ink/10 hover:border-accent hover:text-accent'
+                    )}
+                  >
+                    {m === 'general' ? 'General' : 'ATS / Targeted'}
+                  </button>
+                ))}
+              </div>
+            </motion.section>
+
+            <motion.section
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
@@ -436,12 +570,22 @@ export default function App() {
             >
               <div className="flex items-center justify-between">
                 <span className="mono-label">Professional Links / Optional</span>
-                <button 
-                  onClick={addLink}
-                  className="text-[10px] uppercase font-bold text-accent hover:underline flex items-center gap-1"
-                >
-                  + Add Link
-                </button>
+                <div className="flex items-center gap-3">
+                  {socialLinks.length > 0 && (
+                    <button
+                      onClick={() => setSocialLinks([])}
+                      className="text-[10px] uppercase font-bold text-ink/30 hover:text-red-500 transition-colors"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                  <button
+                    onClick={addLink}
+                    className="text-[10px] uppercase font-bold text-accent hover:underline flex items-center gap-1"
+                  >
+                    + Add Link
+                  </button>
+                </div>
               </div>
               
               <div className="space-y-3">
@@ -476,29 +620,89 @@ export default function App() {
               </div>
             </motion.section>
 
-            <motion.section 
+            <motion.section
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="space-y-6 flex-1 flex flex-col"
+              transition={{ delay: 0.075 }}
+              className="space-y-6"
             >
-              <span className="mono-label">Target Context / Job Description</span>
-              <div className="flex-1 relative">
-                <textarea
-                  value={jobDescription}
-                  onChange={(e) => setJobDescription(e.target.value)}
-                  className="w-full h-full min-h-[300px] bg-transparent border border-ink/10 p-8 text-sm leading-relaxed focus:outline-none focus:border-accent resize-none"
-                  placeholder="Paste the job requirements here..."
+              <div className="flex items-center justify-between">
+                <span className="mono-label flex items-center gap-2">
+                  Skills / Optional
+                  {isExtractingSkills && (
+                    <Loader2 className="w-3 h-3 animate-spin text-accent" />
+                  )}
+                </span>
+                {skills.length > 0 && !isExtractingSkills && (
+                  <button
+                    onClick={() => setSkills([])}
+                    className="text-[10px] uppercase font-bold text-ink/30 hover:text-red-500 transition-colors"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2 border border-ink/10 p-3 min-h-[48px] focus-within:border-accent transition-colors">
+                {isExtractingSkills && (
+                  <span className="text-[10px] font-mono text-ink/30 uppercase tracking-widest animate-pulse">
+                    Extracting skills...
+                  </span>
+                )}
+                {skills.map((skill, i) => (
+                  <motion.span
+                    layout
+                    key={skill}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    className="flex items-center gap-1 border border-ink/20 px-2 py-1 text-[10px] font-mono uppercase tracking-widest"
+                  >
+                    {skill}
+                    <button
+                      onClick={() => removeSkill(i)}
+                      className="ml-1 text-ink/30 hover:text-red-500 transition-colors leading-none"
+                    >
+                      ×
+                    </button>
+                  </motion.span>
+                ))}
+                <input
+                  type="text"
+                  value={skillInput}
+                  onChange={(e) => setSkillInput(e.target.value)}
+                  onKeyDown={handleSkillKeyDown}
+                  onBlur={() => { if (skillInput.trim()) addSkill(skillInput); }}
+                  placeholder={skills.length === 0 ? 'Add a skill and press Enter...' : ''}
+                  className="flex-1 min-w-[120px] bg-transparent text-[10px] font-mono uppercase tracking-widest focus:outline-none"
                 />
-                <div className="absolute bottom-4 right-4 mono-label pointer-events-none opacity-20">
-                  {jobDescription.length} characters
-                </div>
               </div>
             </motion.section>
 
+            {mode === 'ats' && (
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="space-y-6 flex-1 flex flex-col"
+              >
+                <span className="mono-label">Target Context / Job Description</span>
+                <div className="flex-1 relative">
+                  <textarea
+                    value={jobDescription}
+                    onChange={(e) => setJobDescription(e.target.value)}
+                    className="w-full h-full min-h-[300px] bg-transparent border border-ink/10 p-8 text-sm leading-relaxed focus:outline-none focus:border-accent resize-none"
+                    placeholder="Paste the job requirements here..."
+                  />
+                  <div className="absolute bottom-4 right-4 mono-label pointer-events-none opacity-20">
+                    {jobDescription.length} characters
+                  </div>
+                </div>
+              </motion.section>
+            )}
+
             <button
               onClick={generateTailoredResume}
-              disabled={isLoading || !resumeText || !jobDescription}
+              disabled={isLoading || !resumeText || (mode === 'ats' && !jobDescription)}
               className="w-full bg-accent text-white py-8 text-xl display-title italic hover:bg-ink transition-all disabled:opacity-20 disabled:cursor-not-allowed group relative overflow-hidden"
             >
               <AnimatePresence mode="wait">
