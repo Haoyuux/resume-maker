@@ -126,6 +126,7 @@
   color: #1A1A1A;
   font-family: var(--font-serif);
   margin-bottom: 0.2rem;
+  text-align: justify;
 }
 
 .resume-preview ul {
@@ -157,9 +158,8 @@
   letter-spacing: 0.03em;
 }
 
-/* Thin rule after contact block */
-.resume-preview p:first-of-type + p,
-.resume-preview p:nth-of-type(2) {
+/* Links line — only center if it actually contains a hyperlink */
+.resume-preview p:nth-of-type(2):has(a) {
   text-align: center;
   font-size: 0.72rem;
   opacity: 0.75;
