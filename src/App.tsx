@@ -295,8 +295,22 @@ export default function App() {
             p:first-of-type {
               text-align: center;
               font-size: 9.5pt;
+              margin-bottom: 4pt;
+              opacity: 0.8;
+            }
+
+            /* Links line */
+            p:first-of-type + p {
+              text-align: center;
+              font-size: 9.5pt;
               margin-bottom: 12pt;
               opacity: 0.8;
+            }
+
+            /* Links */
+            a {
+              color: inherit;
+              text-decoration: underline;
             }
 
             h2 {
