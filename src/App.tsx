@@ -389,17 +389,35 @@ export default function App() {
 
     await document.fonts.ready;
 
-    // Temporarily apply Harvard-standard padding and shrink h1 for export
+    // Temporarily lay the element out at the exact printable width (Letter
+    // 8.5in minus the 1in jsPDF side margins below). Page margins come from
+    // jsPDF alone — element padding on top of them would double the whitespace.
     const h1 = previewEl.querySelector('h1') as HTMLElement | null;
     const prevH1Size = h1?.style.fontSize ?? '';
+    const prevH1WhiteSpace = h1?.style.whiteSpace ?? '';
     const prevPadding = previewEl.style.padding;
     const prevBoxShadow = previewEl.style.boxShadow;
     const prevMaxWidth = previewEl.style.maxWidth;
+    const prevWidth = previewEl.style.width;
 
-    if (h1) h1.style.fontSize = '18pt';
-    previewEl.style.padding = '0.5in 1in';
+    previewEl.style.padding = '0';
     previewEl.style.boxShadow = 'none';
     previewEl.style.maxWidth = 'none';
+    previewEl.style.width = '6.5in';
+
+    // Shrink the name until it fits on one line (same approach as handlePrint)
+    if (h1) {
+      h1.style.whiteSpace = 'nowrap';
+      let size = 29;
+      h1.style.fontSize = size + 'pt';
+      while (h1.scrollWidth > h1.clientWidth && size > 14) {
+        size -= 0.5;
+        h1.style.fontSize = size + 'pt';
+      }
+      if (h1.scrollWidth > h1.clientWidth) {
+        h1.style.whiteSpace = 'normal';
+      }
+    }
 
     // Prevent paragraphs and list items from splitting across pages
     const allPs = previewEl.querySelectorAll('p');
@@ -418,10 +436,14 @@ export default function App() {
 
     await html2pdf().set(opt).from(previewEl).save();
 
-    if (h1) h1.style.fontSize = prevH1Size;
+    if (h1) {
+      h1.style.fontSize = prevH1Size;
+      h1.style.whiteSpace = prevH1WhiteSpace;
+    }
     previewEl.style.padding = prevPadding;
     previewEl.style.boxShadow = prevBoxShadow;
     previewEl.style.maxWidth = prevMaxWidth;
+    previewEl.style.width = prevWidth;
     allPs.forEach((el: HTMLElement) => { el.style.pageBreakInside = ''; });
     allLis.forEach((el: HTMLElement) => { el.style.pageBreakInside = ''; });
   };
