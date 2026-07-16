@@ -450,6 +450,10 @@ export default function App() {
               color: #111;
               background: white;
               line-height: 1.45;
+              /* Match the printable width (Letter 8.5in - 2 × 1in margins) so
+                 on-screen measurement of the name matches the printed layout */
+              width: 6.5in;
+              margin: 0 auto;
             }
 
             h1 {
@@ -459,6 +463,7 @@ export default function App() {
               text-transform: uppercase;
               letter-spacing: 0.15em;
               margin-bottom: 4pt;
+              white-space: nowrap;
             }
 
             /* Contact line */
@@ -536,7 +541,21 @@ export default function App() {
         <body>
           ${document.querySelector('.resume-preview')?.innerHTML || ''}
           <script>
-            window.onload = () => {
+            window.onload = async () => {
+              await document.fonts.ready;
+              // Shrink the name until it fits the 6.5in printable width on one line
+              const h1 = document.querySelector('h1');
+              if (h1) {
+                let size = 29;
+                while (h1.scrollWidth > h1.clientWidth && size > 14) {
+                  size -= 0.5;
+                  h1.style.fontSize = size + 'pt';
+                }
+                // Extreme names that still overflow at the floor: wrap instead of clipping
+                if (h1.scrollWidth > h1.clientWidth) {
+                  h1.style.whiteSpace = 'normal';
+                }
+              }
               window.print();
               window.onafterprint = () => window.close();
             };
