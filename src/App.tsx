@@ -27,6 +27,13 @@ pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+type Experience = {
+  company: string;
+  title: string;
+  dates: string;
+  bullets: string[];
+};
+
 export default function App() {
   const [resumeText, setResumeText] = useState<string>('');
   const [jobDescription, setJobDescription] = useState<string>('');
@@ -45,6 +52,13 @@ export default function App() {
     return [];
   });
   const [skillInput, setSkillInput] = useState('');
+  const [experiences, setExperiences] = useState<Experience[]>(() => {
+    try {
+      const saved = localStorage.getItem('experiences');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
   const [isExtractingSkills, setIsExtractingSkills] = useState(false);
   const [mode, setMode] = useState<'general' | 'ats'>(() => {
     return (localStorage.getItem('resumeMode') as 'general' | 'ats') || 'ats';
@@ -67,6 +81,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('resumeMode', mode);
   }, [mode]);
+
+  useEffect(() => {
+    localStorage.setItem('experiences', JSON.stringify(experiences));
+  }, [experiences]);
 
   const extractTextFromPdf = async (file: File) => {
     const arrayBuffer = await file.arrayBuffer();
@@ -191,6 +209,19 @@ export default function App() {
 
       const skillsContext = skills.length > 0 ? skills.join(', ') : '';
 
+      const experienceContext = experiences
+        .filter(exp => exp.company.trim() !== '' || exp.title.trim() !== '')
+        .map(exp => {
+          const heading = [exp.company.trim(), exp.title.trim()].filter(Boolean).join(' — ')
+            + (exp.dates.trim() ? ` (${exp.dates.trim()})` : '');
+          const bullets = exp.bullets
+            .filter(b => b.trim() !== '')
+            .map(b => `- ${b.trim()}`)
+            .join('\n');
+          return bullets ? `${heading}\n${bullets}` : heading;
+        })
+        .join('\n\n');
+
       const sharedRules = `
           CRITICAL ACCURACY RULES — NEVER VIOLATE:
           - Only use facts from the original resume. Do NOT invent, fabricate, or embellish any job titles, companies, dates, degrees, institutions, or accomplishments.
@@ -223,6 +254,7 @@ export default function App() {
           ${linksContext || 'None provided'}
 
           ${skillsContext ? `Candidate's known skills (incorporate into ## SKILLS section, grouped by category):\n          ${skillsContext}\n` : ''}
+          ${experienceContext ? `Additional experience provided by the candidate (include in ## EXPERIENCE, treat as factual):\n${experienceContext}\n` : ''}
           Original Resume:
           ${resumeText}
 
@@ -237,6 +269,7 @@ export default function App() {
           ${linksContext || 'None provided'}
 
           ${skillsContext ? `Candidate's known skills (incorporate into ## SKILLS section, grouped by category):\n          ${skillsContext}\n` : ''}
+          ${experienceContext ? `Additional experience provided by the candidate (include in ## EXPERIENCE, treat as factual):\n${experienceContext}\n` : ''}
           Original Resume:
           ${resumeText}
 
@@ -291,6 +324,47 @@ export default function App() {
     setSkills(skills.filter((_, i) => i !== index));
   };
 
+  const addExperience = () => {
+    setExperiences([...experiences, { company: '', title: '', dates: '', bullets: [''] }]);
+  };
+
+  const updateExperience = (index: number, field: 'company' | 'title' | 'dates', value: string) => {
+    const next = [...experiences];
+    next[index] = { ...next[index], [field]: value };
+    setExperiences(next);
+  };
+
+  const removeExperience = (index: number) => {
+    setExperiences(experiences.filter((_, i) => i !== index));
+  };
+
+  const updateBullet = (expIndex: number, bulletIndex: number, value: string) => {
+    const next = [...experiences];
+    const bullets = [...next[expIndex].bullets];
+    bullets[bulletIndex] = value;
+    next[expIndex] = { ...next[expIndex], bullets };
+    setExperiences(next);
+  };
+
+  const addBullet = (expIndex: number, afterIndex?: number) => {
+    const next = [...experiences];
+    const bullets = [...next[expIndex].bullets];
+    const insertAt = afterIndex !== undefined ? afterIndex + 1 : bullets.length;
+    bullets.splice(insertAt, 0, '');
+    next[expIndex] = { ...next[expIndex], bullets };
+    setExperiences(next);
+    requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLInputElement>(`[data-bullet="${expIndex}-${insertAt}"]`);
+      el?.focus();
+    });
+  };
+
+  const removeBullet = (expIndex: number, bulletIndex: number) => {
+    const next = [...experiences];
+    next[expIndex] = { ...next[expIndex], bullets: next[expIndex].bullets.filter((_, i) => i !== bulletIndex) };
+    setExperiences(next);
+  };
+
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generatedResume);
     setIsCopied(true);
@@ -334,11 +408,11 @@ export default function App() {
     allLis.forEach((el: HTMLElement) => { el.style.pageBreakInside = 'avoid'; });
 
     const opt = {
-      margin: [0.75, 1, 0.75, 1],
+      margin: [0.75, 1, 0.75, 1] as [number, number, number, number],
       filename: `${name}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
+      image: { type: 'jpeg' as const, quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, logging: false },
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' as const },
       pagebreak: { mode: ['css', 'legacy'], avoid: ['.resume-preview h2', '.resume-preview h3', '.resume-preview li', '.resume-preview p'] },
     };
 
@@ -690,6 +764,110 @@ export default function App() {
                   className="flex-1 min-w-[120px] bg-transparent text-[10px] font-mono uppercase tracking-widest focus:outline-none"
                 />
               </div>
+            </motion.section>
+
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.09 }}
+              className="space-y-6"
+            >
+              <div className="flex items-center justify-between">
+                <span className="mono-label">Experience / Optional</span>
+                <div className="flex items-center gap-3">
+                  {experiences.length > 0 && (
+                    <button
+                      onClick={() => setExperiences([])}
+                      className="text-[10px] uppercase font-bold text-ink/30 hover:text-red-500 transition-colors"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                  <button
+                    onClick={addExperience}
+                    className="text-[10px] uppercase font-bold text-accent hover:underline flex items-center gap-1"
+                  >
+                    + Add Entry
+                  </button>
+                </div>
+              </div>
+
+              {experiences.length > 0 && (
+                <div className="space-y-4">
+                  {experiences.map((exp, i) => (
+                    <motion.div
+                      layout
+                      key={i}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="border border-ink/10 p-4 space-y-3 group relative"
+                    >
+                      <button
+                        onClick={() => removeExperience(i)}
+                        className="absolute top-3 right-3 p-1 text-ink/20 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <div className="flex gap-2 pr-8">
+                        <input
+                          type="text"
+                          value={exp.company}
+                          onChange={(e) => updateExperience(i, 'company', e.target.value)}
+                          placeholder="Company"
+                          className="flex-1 bg-transparent border border-ink/10 p-3 text-xs font-mono focus:outline-none focus:border-accent"
+                        />
+                        <input
+                          type="text"
+                          value={exp.title}
+                          onChange={(e) => updateExperience(i, 'title', e.target.value)}
+                          placeholder="Job Title"
+                          className="flex-1 bg-transparent border border-ink/10 p-3 text-xs font-mono focus:outline-none focus:border-accent"
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        value={exp.dates}
+                        onChange={(e) => updateExperience(i, 'dates', e.target.value)}
+                        placeholder="Dates (e.g. Jan 2022 – Present)"
+                        className="w-full bg-transparent border border-ink/10 p-3 text-xs font-mono focus:outline-none focus:border-accent"
+                      />
+                      <div className="space-y-2">
+                        {exp.bullets.map((bullet, j) => (
+                          <div key={j} className="flex items-center gap-2">
+                            <span className="text-ink/30 text-xs">•</span>
+                            <input
+                              type="text"
+                              data-bullet={`${i}-${j}`}
+                              value={bullet}
+                              onChange={(e) => updateBullet(i, j, e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  addBullet(i, j);
+                                }
+                              }}
+                              placeholder="What did you accomplish?"
+                              className="flex-1 bg-transparent border border-ink/10 p-2 text-xs focus:outline-none focus:border-accent"
+                            />
+                            <button
+                              onClick={() => removeBullet(i, j)}
+                              className="text-ink/20 hover:text-red-500 transition-colors leading-none px-1"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => addBullet(i)}
+                          className="text-[10px] uppercase font-bold text-accent hover:underline"
+                        >
+                          + Add bullet
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
             </motion.section>
 
             {mode === 'ats' && (
