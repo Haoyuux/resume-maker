@@ -90,12 +90,38 @@ export default function App() {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
     let fullText = '';
-    
+
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
-      const pageText = textContent.items.map((item: any) => item.str).join(' ');
-      fullText += pageText + '\n';
+
+      // Sort items by y descending (PDF y is bottom-up), then x ascending
+      const items = (textContent.items as any[])
+        .filter(item => item.str)
+        .sort((a, b) => {
+          const yDiff = b.transform[5] - a.transform[5];
+          if (Math.abs(yDiff) > 2) return yDiff;
+          return a.transform[4] - b.transform[4];
+        });
+
+      // Group into lines (items within 2pt vertical proximity)
+      const lines: string[][] = [];
+      let currentLine: string[] = [];
+      let lastY: number | null = null;
+
+      for (const item of items) {
+        const y = item.transform[5];
+        if (lastY === null || Math.abs(y - lastY) <= 2) {
+          currentLine.push(item.str);
+        } else {
+          if (currentLine.length) lines.push(currentLine);
+          currentLine = [item.str];
+        }
+        lastY = y;
+      }
+      if (currentLine.length) lines.push(currentLine);
+
+      fullText += lines.map(line => line.join(' ')).join('\n') + '\n';
     }
     return fullText;
   };
@@ -239,7 +265,8 @@ export default function App() {
           6. Bullet points start with strong action verbs; each is one concise achievement-oriented sentence
           7. ## SKILLS section: each category MUST be its own separate paragraph with a blank line between them (e.g., "**Languages:** Python, Java\n\n**Frameworks:** React, Django"). NEVER put multiple categories in the same paragraph. List only actual technical skills and tools. NEVER include the candidate's own name or parts of their name as a skill.
           8. No tables, no columns, no icons — clean single-column Markdown only
-          9. Do NOT add a "Professional Summary" section unless the original resume already has one`;
+          9. Do NOT add a "Professional Summary" or "PROFILE" section unless the original resume already has one with substantive content (3+ sentences). If present but sparse (1 sentence or vague filler), omit it.
+          10. SECTION SELECTION — only include sections that have meaningful, substantive content from the original resume. Omit entirely: "References", "Hobbies", "Interests", "Objective", "References Available Upon Request", or any section with only 1 weak/generic item. Quality over quantity — fewer strong sections beats many weak ones.`;
 
       const prompt = mode === 'ats'
         ? `You are an expert professional resume writer. Rewrite the provided resume to target the given job description, formatted in Harvard resume style using Markdown.
@@ -400,6 +427,10 @@ export default function App() {
     const prevMaxWidth = previewEl.style.maxWidth;
     const prevWidth = previewEl.style.width;
 
+<<<<<<< Updated upstream
+=======
+    if (h1) h1.style.fontSize = '18pt';
+>>>>>>> Stashed changes
     previewEl.style.padding = '0';
     previewEl.style.boxShadow = 'none';
     previewEl.style.maxWidth = 'none';
@@ -497,7 +528,7 @@ export default function App() {
             }
 
             /* Links line */
-            p:first-of-type + p {
+            p:first-of-type + p:has(a) {
               text-align: center;
               font-size: 9.5pt;
               margin-bottom: 12pt;
@@ -505,7 +536,7 @@ export default function App() {
             }
 
             /* Links line (2nd paragraph) */
-            p:nth-of-type(2) {
+            p:nth-of-type(2):has(a) {
               text-align: center;
               font-size: 9.5pt;
               margin-bottom: 12pt;
