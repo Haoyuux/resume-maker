@@ -18,7 +18,7 @@ import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { cn } from './lib/utils';
-import html2pdf from 'html2pdf.js';
+import { jsPDF } from 'jspdf';
 import * as pdfjs from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { motion, AnimatePresence } from 'motion/react';
@@ -42,6 +42,109 @@ const markdownComponents = {
     </a>
   ),
 };
+
+// --- PDF export: renders the resume as real (selectable/ATS-parseable) text ---
+// instead of a rasterized snapshot, by walking the rendered .resume-preview DOM.
+
+type PdfRun = { text: string; bold: boolean; italic: boolean; link?: string };
+type PdfToken = PdfRun & { isSpace: boolean };
+
+function extractRuns(node: Node, bold = false, italic = false, link?: string): PdfRun[] {
+  const runs: PdfRun[] = [];
+  node.childNodes.forEach((child) => {
+    if (child.nodeType === Node.TEXT_NODE) {
+      const text = child.textContent || '';
+      if (text) runs.push({ text, bold, italic, link });
+    } else if (child.nodeType === Node.ELEMENT_NODE) {
+      const el = child as HTMLElement;
+      const tag = el.tagName.toLowerCase();
+      runs.push(...extractRuns(
+        el,
+        bold || tag === 'strong' || tag === 'b',
+        italic || tag === 'em' || tag === 'i',
+        tag === 'a' ? (el.getAttribute('href') || link) : link,
+      ));
+    }
+  });
+  return runs;
+}
+
+function tokenizeRuns(runs: PdfRun[]): PdfToken[] {
+  const tokens: PdfToken[] = [];
+  for (const run of runs) {
+    const parts = run.text.split(/(\s+)/).filter(Boolean);
+    for (const part of parts) {
+      tokens.push({ ...run, text: part, isSpace: /^\s+$/.test(part) });
+    }
+  }
+  return tokens;
+}
+
+function pdfFontStyle(bold: boolean, italic: boolean): 'bold' | 'italic' | 'bolditalic' | 'normal' {
+  if (bold && italic) return 'bolditalic';
+  if (bold) return 'bold';
+  if (italic) return 'italic';
+  return 'normal';
+}
+
+// Greedily wraps tokens into lines that fit maxWidth at the given font size.
+function wrapTokens(doc: jsPDF, tokens: PdfToken[], maxWidth: number, fontSize: number): PdfToken[][] {
+  doc.setFontSize(fontSize);
+  const lines: PdfToken[][] = [];
+  let line: PdfToken[] = [];
+  let width = 0;
+
+  for (const token of tokens) {
+    if (token.isSpace && line.length === 0) continue;
+    doc.setFont('times', pdfFontStyle(token.bold, token.italic));
+    const w = doc.getTextWidth(token.text);
+    if (!token.isSpace && width + w > maxWidth && line.length > 0) {
+      while (line.length && line[line.length - 1].isSpace) line.pop();
+      lines.push(line);
+      line = [];
+      width = 0;
+    }
+    line.push(token);
+    width += w;
+  }
+  while (line.length && line[line.length - 1].isSpace) line.pop();
+  if (line.length) lines.push(line);
+  return lines;
+}
+
+// Draws wrapped rich-text lines starting at (x, y); returns the y position after the block.
+function renderLines(
+  doc: jsPDF,
+  lines: PdfToken[][],
+  opts: { x: number; y: number; width: number; fontSize: number; align: 'left' | 'center'; lineHeight: number; ensureSpace: (h: number) => void },
+): number {
+  let y = opts.y;
+  for (const line of lines) {
+    opts.ensureSpace(opts.lineHeight);
+    doc.setFontSize(opts.fontSize);
+    const widths = line.map((t) => {
+      doc.setFont('times', pdfFontStyle(t.bold, t.italic));
+      return doc.getTextWidth(t.text);
+    });
+    const totalWidth = widths.reduce((a, b) => a + b, 0);
+    let x = opts.align === 'center' ? opts.x + (opts.width - totalWidth) / 2 : opts.x;
+    line.forEach((token, i) => {
+      if (!token.isSpace) {
+        doc.setFont('times', pdfFontStyle(token.bold, token.italic));
+        if (token.link) {
+          doc.textWithLink(token.text, x, y, { url: token.link });
+          doc.setLineWidth(0.005);
+          doc.line(x, y + 0.02, x + widths[i], y + 0.02);
+        } else {
+          doc.text(token.text, x, y);
+        }
+      }
+      x += widths[i];
+    });
+    y += opts.lineHeight;
+  }
+  return y;
+}
 
 export default function App() {
   const [resumeText, setResumeText] = useState<string>('');
@@ -177,7 +280,13 @@ export default function App() {
         alert('Please upload a PDF or Text file.');
         return;
       }
-      
+
+      if (!text.trim()) {
+        alert('No selectable text found in this PDF. If it was exported using this app\'s "Download PDF" button, it\'s a flattened image and can\'t be re-imported — use the "Download Text" (.md) export instead, or paste your resume text manually.');
+        setFileName(null);
+        return;
+      }
+
       setResumeText(text);
       extractLinksFromText(text);
       extractSkillsFromText(text);
@@ -298,18 +407,13 @@ export default function App() {
           5. Under education use ### for "Institution Name" then degree and date
           6. Bullet points start with strong action verbs; each is one concise achievement-oriented sentence
           7. ## SKILLS section: each category MUST be its own separate paragraph with a blank line between them (e.g., "**Languages:** Python, Java\n\n**Frameworks:** React, Django"). NEVER put multiple categories in the same paragraph. List only actual technical skills and tools. NEVER include the candidate's own name or parts of their name as a skill.
-<<<<<<< Updated upstream
           8. No tables, no columns, no icons — clean single-column Markdown only
-          9. Do NOT add a "Professional Summary" or "PROFILE" section unless the original resume already has one with substantive content (3+ sentences). If present but sparse (1 sentence or vague filler), omit it.
-          10. SECTION SELECTION — only include sections that have meaningful, substantive content from the original resume. Omit entirely: "References", "Hobbies", "Interests", "Objective", "References Available Upon Request", or any section with only 1 weak/generic item. Quality over quantity — fewer strong sections beats many weak ones.`;
-=======
-          8. No tables, no columns, no icons — clean single-column Markdown only`;
->>>>>>> Stashed changes
+          9. SECTION SELECTION — only include sections that have meaningful, substantive content from the original resume. Omit entirely: "References", "Hobbies", "Interests", "Objective", "References Available Upon Request", or any section with only 1 weak/generic item. Quality over quantity — fewer strong sections beats many weak ones.`;
 
       const prompt = mode === 'ats'
         ? `You are an expert professional resume writer. Rewrite the provided resume to target the given job description, formatted in Harvard resume style using Markdown.
           ${sharedRules}
-          9. Always include a "## PROFESSIONAL SUMMARY" section immediately after the contact/links paragraphs, before any other section. Write 2-3 concise sentences summarizing the candidate's relevant experience and naturally working in 2-4 keywords from the job description. Base it only on facts already present in the original resume — never fabricate experience to fit the summary.
+          10. Always include a "## PROFESSIONAL SUMMARY" section immediately after the contact/links paragraphs, before any other section. Write 2-3 concise sentences summarizing the candidate's relevant experience and naturally working in 2-4 keywords from the job description. Base it only on facts already present in the original resume — never fabricate experience to fit the summary.
 
           ATS OPTIMIZATION:
           - Naturally incorporate relevant keywords from the job description
@@ -330,7 +434,7 @@ export default function App() {
           Output only the Markdown resume. No preamble, no commentary, no code fences.`
         : `You are an expert professional resume writer. Rewrite the provided resume into a clean, professional, general-purpose resume using Harvard resume style Markdown. Do not tailor to any specific job. Improve the content: strengthen weak bullet points with strong action verbs, quantify achievements where possible, remove filler or vague language, and ensure every bullet is concise and impact-focused. Fix grammar and phrasing throughout.
           ${sharedRules}
-          9. Do NOT add a "Professional Summary" section unless the original resume already has one.
+          10. Do NOT add a "Professional Summary" section unless the original resume already has one with substantive content (3+ sentences). If present but sparse (1 sentence or vague filler), omit it.
 
           Professional Links to include (if provided):
           ${linksContext || 'None provided'}
@@ -447,75 +551,106 @@ export default function App() {
     element.click();
   };
 
-  const downloadAsPdf = async () => {
+  const downloadAsPdf = () => {
     const previewEl = document.querySelector('.resume-preview') as HTMLElement;
     if (!previewEl) return;
 
     const name = previewEl.querySelector('h1')?.textContent?.trim() || 'tailored-resume';
 
-    await document.fonts.ready;
+    const doc = new jsPDF({ unit: 'in', format: 'letter', orientation: 'portrait' });
+    const pageWidth = 8.5;
+    const pageHeight = 11;
+    const marginX = 1;
+    const marginTop = 0.75;
+    const marginBottom = 0.75;
+    const contentWidth = pageWidth - marginX * 2;
+    let y = marginTop;
 
-    // Temporarily lay the element out at the exact printable width (Letter
-    // 8.5in minus the 1in jsPDF side margins below). Page margins come from
-    // jsPDF alone — element padding on top of them would double the whitespace.
-    const h1 = previewEl.querySelector('h1') as HTMLElement | null;
-    const prevH1Size = h1?.style.fontSize ?? '';
-    const prevH1WhiteSpace = h1?.style.whiteSpace ?? '';
-    const prevPadding = previewEl.style.padding;
-    const prevBoxShadow = previewEl.style.boxShadow;
-    const prevMaxWidth = previewEl.style.maxWidth;
-    const prevWidth = previewEl.style.width;
-
-<<<<<<< Updated upstream
-=======
-    if (h1) h1.style.fontSize = '18pt';
->>>>>>> Stashed changes
-    previewEl.style.padding = '0';
-    previewEl.style.boxShadow = 'none';
-    previewEl.style.maxWidth = 'none';
-    previewEl.style.width = '6.5in';
-
-    // Shrink the name until it fits on one line (same approach as handlePrint)
-    if (h1) {
-      h1.style.whiteSpace = 'nowrap';
-      let size = 29;
-      h1.style.fontSize = size + 'pt';
-      while (h1.scrollWidth > h1.clientWidth && size > 14) {
-        size -= 0.5;
-        h1.style.fontSize = size + 'pt';
+    const ensureSpace = (needed: number) => {
+      if (y + needed > pageHeight - marginBottom) {
+        doc.addPage();
+        y = marginTop;
       }
-      if (h1.scrollWidth > h1.clientWidth) {
-        h1.style.whiteSpace = 'normal';
-      }
-    }
-
-    // Prevent paragraphs and list items from splitting across pages
-    const allPs = previewEl.querySelectorAll('p');
-    const allLis = previewEl.querySelectorAll('li');
-    allPs.forEach((el: HTMLElement) => { el.style.pageBreakInside = 'avoid'; });
-    allLis.forEach((el: HTMLElement) => { el.style.pageBreakInside = 'avoid'; });
-
-    const opt = {
-      margin: [0.75, 1, 0.75, 1] as [number, number, number, number],
-      filename: `${name}.pdf`,
-      image: { type: 'jpeg' as const, quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false },
-      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' as const },
-      pagebreak: { mode: ['css', 'legacy'], avoid: ['.resume-preview h2', '.resume-preview h3', '.resume-preview li', '.resume-preview p'] },
     };
 
-    await html2pdf().set(opt).from(previewEl).save();
+    let sawSectionHeading = false;
 
-    if (h1) {
-      h1.style.fontSize = prevH1Size;
-      h1.style.whiteSpace = prevH1WhiteSpace;
-    }
-    previewEl.style.padding = prevPadding;
-    previewEl.style.boxShadow = prevBoxShadow;
-    previewEl.style.maxWidth = prevMaxWidth;
-    previewEl.style.width = prevWidth;
-    allPs.forEach((el: HTMLElement) => { el.style.pageBreakInside = ''; });
-    allLis.forEach((el: HTMLElement) => { el.style.pageBreakInside = ''; });
+    Array.from(previewEl.children).forEach((child) => {
+      const el = child as HTMLElement;
+      const tag = el.tagName.toLowerCase();
+
+      if (tag === 'h1') {
+        doc.setFont('times', 'bold');
+        doc.setFontSize(20);
+        ensureSpace(0.32);
+        doc.text((el.textContent || '').trim().toUpperCase(), pageWidth / 2, y, { align: 'center' });
+        y += 0.32;
+      } else if (tag === 'h2') {
+        sawSectionHeading = true;
+        ensureSpace(0.4);
+        y += 0.12;
+        doc.setFont('times', 'bold');
+        doc.setFontSize(11);
+        doc.text((el.textContent || '').trim().toUpperCase(), marginX, y);
+        y += 0.06;
+        doc.setLineWidth(0.012);
+        doc.line(marginX, y, marginX + contentWidth, y);
+        y += 0.18;
+      } else if (tag === 'h3') {
+        ensureSpace(0.25);
+        doc.setFont('times', 'bold');
+        doc.setFontSize(11);
+        doc.text((el.textContent || '').trim(), marginX, y);
+        y += 0.19;
+      } else if (tag === 'p') {
+        const isHeaderPara = !sawSectionHeading;
+        const isDateLine = el.children.length === 1
+          && el.children[0].tagName === 'EM'
+          && el.textContent === el.children[0].textContent;
+        const tokens = tokenizeRuns(extractRuns(el));
+        if (tokens.length === 0) return;
+        const fontSize = isHeaderPara || isDateLine ? 9.5 : 10;
+        const lineHeight = (fontSize / 72) * 1.35;
+        const lines = wrapTokens(doc, tokens, contentWidth, fontSize);
+        y = renderLines(doc, lines, {
+          x: marginX,
+          y,
+          width: contentWidth,
+          fontSize,
+          align: isHeaderPara ? 'center' : 'left',
+          lineHeight,
+          ensureSpace,
+        });
+        y += isDateLine ? 0.06 : 0.14;
+      } else if (tag === 'ul') {
+        Array.from(el.children).forEach((liChild) => {
+          const li = liChild as HTMLElement;
+          const bulletIndent = 0.2;
+          const fontSize = 10;
+          const lineHeight = (fontSize / 72) * 1.35;
+          const tokens = tokenizeRuns(extractRuns(li));
+          if (tokens.length === 0) return;
+          const lines = wrapTokens(doc, tokens, contentWidth - bulletIndent, fontSize);
+          ensureSpace(lineHeight);
+          doc.setFont('times', 'normal');
+          doc.setFontSize(fontSize);
+          doc.text('•', marginX, y);
+          y = renderLines(doc, lines, {
+            x: marginX + bulletIndent,
+            y,
+            width: contentWidth - bulletIndent,
+            fontSize,
+            align: 'left',
+            lineHeight,
+            ensureSpace,
+          });
+          y += 0.03;
+        });
+        y += 0.1;
+      }
+    });
+
+    doc.save(`${name}.pdf`);
   };
 
   const handlePrint = () => {
