@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { cn } from './lib/utils';
 import html2pdf from 'html2pdf.js';
 import * as pdfjs from 'pdfjs-dist';
@@ -32,6 +33,14 @@ type Experience = {
   title: string;
   dates: string;
   bullets: string[];
+};
+
+const markdownComponents = {
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>
+      {children}
+    </a>
+  ),
 };
 
 export default function App() {
@@ -69,6 +78,7 @@ export default function App() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     localStorage.setItem('socialLinks', JSON.stringify(socialLinks));
@@ -85,6 +95,30 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('experiences', JSON.stringify(experiences));
   }, [experiences]);
+
+  // Seed the editable preview from a fresh generation. Written once via ref
+  // (not as React children) so the browser's contentEditable mutations never
+  // conflict with React's reconciliation of this subtree.
+  useEffect(() => {
+    if (previewRef.current) {
+      previewRef.current.innerHTML = generatedResume
+        ? renderToStaticMarkup(<ReactMarkdown components={markdownComponents}>{generatedResume}</ReactMarkdown>)
+        : '';
+    }
+  }, [generatedResume]);
+
+  const handlePreviewPaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text/plain');
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(document.createTextNode(text));
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  };
 
   const extractTextFromPdf = async (file: File) => {
     const arrayBuffer = await file.arrayBuffer();
@@ -264,13 +298,18 @@ export default function App() {
           5. Under education use ### for "Institution Name" then degree and date
           6. Bullet points start with strong action verbs; each is one concise achievement-oriented sentence
           7. ## SKILLS section: each category MUST be its own separate paragraph with a blank line between them (e.g., "**Languages:** Python, Java\n\n**Frameworks:** React, Django"). NEVER put multiple categories in the same paragraph. List only actual technical skills and tools. NEVER include the candidate's own name or parts of their name as a skill.
+<<<<<<< Updated upstream
           8. No tables, no columns, no icons — clean single-column Markdown only
           9. Do NOT add a "Professional Summary" or "PROFILE" section unless the original resume already has one with substantive content (3+ sentences). If present but sparse (1 sentence or vague filler), omit it.
           10. SECTION SELECTION — only include sections that have meaningful, substantive content from the original resume. Omit entirely: "References", "Hobbies", "Interests", "Objective", "References Available Upon Request", or any section with only 1 weak/generic item. Quality over quantity — fewer strong sections beats many weak ones.`;
+=======
+          8. No tables, no columns, no icons — clean single-column Markdown only`;
+>>>>>>> Stashed changes
 
       const prompt = mode === 'ats'
         ? `You are an expert professional resume writer. Rewrite the provided resume to target the given job description, formatted in Harvard resume style using Markdown.
           ${sharedRules}
+          9. Always include a "## PROFESSIONAL SUMMARY" section immediately after the contact/links paragraphs, before any other section. Write 2-3 concise sentences summarizing the candidate's relevant experience and naturally working in 2-4 keywords from the job description. Base it only on facts already present in the original resume — never fabricate experience to fit the summary.
 
           ATS OPTIMIZATION:
           - Naturally incorporate relevant keywords from the job description
@@ -291,6 +330,7 @@ export default function App() {
           Output only the Markdown resume. No preamble, no commentary, no code fences.`
         : `You are an expert professional resume writer. Rewrite the provided resume into a clean, professional, general-purpose resume using Harvard resume style Markdown. Do not tailor to any specific job. Improve the content: strengthen weak bullet points with strong action verbs, quantify achievements where possible, remove filler or vague language, and ensure every bullet is concise and impact-focused. Fix grammar and phrasing throughout.
           ${sharedRules}
+          9. Do NOT add a "Professional Summary" section unless the original resume already has one.
 
           Professional Links to include (if provided):
           ${linksContext || 'None provided'}
@@ -393,16 +433,16 @@ export default function App() {
   };
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(generatedResume);
+    navigator.clipboard.writeText(previewRef.current?.innerText || '');
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
   };
 
   const downloadAsText = () => {
     const element = document.createElement("a");
-    const file = new Blob([generatedResume], {type: 'text/plain'});
+    const file = new Blob([previewRef.current?.innerText || ''], {type: 'text/plain'});
     element.href = URL.createObjectURL(file);
-    element.download = "tailored-resume.md";
+    element.download = "tailored-resume.txt";
     document.body.appendChild(element);
     element.click();
   };
@@ -411,8 +451,7 @@ export default function App() {
     const previewEl = document.querySelector('.resume-preview') as HTMLElement;
     if (!previewEl) return;
 
-    const nameMatch = generatedResume.match(/^#\s+(.+)/m);
-    const name = nameMatch ? nameMatch[1].trim() : 'tailored-resume';
+    const name = previewEl.querySelector('h1')?.textContent?.trim() || 'tailored-resume';
 
     await document.fonts.ready;
 
@@ -1008,6 +1047,9 @@ export default function App() {
                 {generatedResume && (
                   <span className="text-[10px] font-bold text-accent animate-pulse">GENERATION COMPLETE</span>
                 )}
+                {generatedResume && (
+                  <span className="mono-label opacity-40">Editable</span>
+                )}
               </div>
               
               {generatedResume && (
@@ -1091,21 +1133,15 @@ export default function App() {
 
               <motion.div
                 layout
+                ref={previewRef}
+                contentEditable={!!generatedResume}
+                suppressContentEditableWarning
+                onPaste={handlePreviewPaste}
                 className={cn(
                   "resume-preview",
                   isFullscreen ? "my-20" : "my-4"
                 )}
-              >
-                <ReactMarkdown
-                  components={{
-                    a: ({ href, children }) => (
-                      <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>
-                        {children}
-                      </a>
-                    ),
-                  }}
-                >{generatedResume}</ReactMarkdown>
-              </motion.div>
+              />
             </div>
           </div>
         </div>

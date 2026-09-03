@@ -73,6 +73,20 @@
   box-shadow: 0 2px 24px rgba(0,0,0,0.07);
 }
 
+.resume-preview[contenteditable="true"] {
+  cursor: text;
+  outline: none;
+  transition: box-shadow 0.2s ease;
+}
+
+.resume-preview[contenteditable="true"]:hover {
+  box-shadow: 0 2px 24px rgba(0,0,0,0.07), 0 0 0 1px rgba(255,95,31,0.15);
+}
+
+.resume-preview[contenteditable="true"]:focus {
+  box-shadow: 0 2px 24px rgba(0,0,0,0.07), 0 0 0 2px var(--color-accent);
+}
+
 /* Candidate name — large and centered */
 .resume-preview h1 {
   font-family: var(--font-serif);
